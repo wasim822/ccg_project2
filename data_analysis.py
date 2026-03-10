@@ -3,8 +3,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import warnings
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 # suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -18,8 +20,8 @@ def fixDataset(odf):
     print("Missing values handled")
 
     # add new metrics (protein-to-carbs ratio and carbs-to-fat ratio)
-    df['Protein_to_Carbs_ratio'] = df['Protein(g)'] / df['Carbs(g)']
-    df['Carbs_to_Fat_ratio'] = df['Carbs(g)'] / df['Fat(g)']
+    df['Protein_to_Carbs_ratio'] = df['Protein(g)'] / df['Carbs(g)'].replace(0,1)
+    df['Carbs_to_Fat_ratio'] = df['Carbs(g)'] / df['Fat(g)'].replace(0,1)
 
     return df
 
