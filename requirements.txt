@@ -1,0 +1,7 @@
+flask
+flask-cors
+pandas
+seaborn
+matplotlib
+azure-storage-blob
+gunicorn

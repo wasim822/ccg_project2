@@ -1,4 +1,4 @@
-const API = "http://localhost:5000"; 
+const API = window.location.origin;
 // backend API URL
 
 let barChart;
