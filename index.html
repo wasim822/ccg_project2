@@ -44,34 +44,48 @@
 
       <h2>Filters and Data Interaction</h2>
 
-      <input type="text" placeholder="Search by Diet Type" />
+      <div class="filters">
+        <input type="text" id="searchInput" placeholder="Search by recipe name" />
 
-      <select id="dietType">
-        <option value="">All Diet Types</option>
-        <option value="keto">Keto</option>
-        <option value="vegan">Vegan</option>
-        <option value="dash">Dash</option>
-        <option value="paleo">Paleo</option>
-        <option value="mediterranean">Mediterranean</option>
-      </select>
+        <select id="dietType">
+          <option value="">All Diet Types</option>
+          <option value="keto">Keto</option>
+          <option value="vegan">Vegan</option>
+          <option value="dash">Dash</option>
+          <option value="paleo">Paleo</option>
+          <option value="mediterranean">Mediterranean</option>
+        </select>
+      </div>
 
       <h2>API Data Interaction</h2>
 
-      <button class="btn blue" id="getInsights">
-        Get Nutritional Insights
-      </button>
-
+      <button class="btn blue" id="getInsights">Get Nutritional Insights</button>
       <button class="btn green" id="getRecipes">Get Recipes</button>
-
       <button class="btn purple" id="getClusters">Get Clusters</button>
 
-      <h2>Pagination</h2>
+      <!-- Recipe results table (hidden until recipes are loaded) -->
+      <div id="recipeSection" class="hidden">
+        <h2>Recipes</h2>
 
-      <div class="pagination">
-        <button>Previous</button>
-        <button class="active">1</button>
-        <button>2</button>
-        <button>Next</button>
+        <div id="recipeInfo" class="recipe-info"></div>
+
+        <table id="recipeTable">
+          <thead>
+            <tr>
+              <th>Recipe Name</th>
+              <th>Diet Type</th>
+              <th>Cuisine</th>
+              <th>Protein (g)</th>
+              <th>Carbs (g)</th>
+              <th>Fat (g)</th>
+            </tr>
+          </thead>
+          <tbody id="recipeBody"></tbody>
+        </table>
+
+        <h2>Pagination</h2>
+
+        <div class="pagination" id="pagination"></div>
       </div>
     </div>
 
