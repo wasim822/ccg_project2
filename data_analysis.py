@@ -5,17 +5,46 @@ import warnings
 
 import pandas as pd
 from azure.storage.blob import BlobServiceClient
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for, g
 from flask_cors import CORS
+from dotenv import load_dotenv
+
+from auth import auth0
+from auth0_server_python.auth_server.server_client import StartInteractiveLoginOptions
+
+load_dotenv()
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
+
+app.secret_key = os.getenv("AUTH0_SECRET")
+
+# Secure session cookie settings (HTTPS not yet active so SECURE=False for dev)
+app.config.update(
+    SESSION_COOKIE_SECURE=False,   # Set True when HTTPS is enabled
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
 
 warnings.filterwarnings("ignore")
 
 # Data source mode – set at startup via --source argument
 DATA_SOURCE = "azure"   # overwritten in main
 
+
+# ──────────────────────────────────────────────
+# Auth0 request context helper
+# ──────────────────────────────────────────────
+
+@app.before_request
+def store_request_context():
+    """Make the current request available to the Auth0 SDK."""
+    g.store_options = {"request": request}
+
+
+# ──────────────────────────────────────────────
+# Dataset helpers (unchanged)
+# ──────────────────────────────────────────────
 
 def fixDataset(odf: pd.DataFrame) -> pd.DataFrame:
     df = odf.copy()
@@ -37,10 +66,8 @@ def whitelistInput(value: str | None) -> str | None:
     return None
 
 
-# Dataset loading – branches on DATA_SOURCE dpending if we are using the local CSV or Azure
-
 def loadDatasetLocal() -> pd.DataFrame:
-    """Load All_Diets.csv from local (same directory as this script)."""
+    """Load All_Diets.csv from the same directory as this script."""
     local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "All_Diets.csv")
     if not os.path.exists(local_path):
         raise FileNotFoundError(f"All_Diets.csv not found at {local_path}")
@@ -73,12 +100,9 @@ def loadDataset() -> pd.DataFrame:
     return loadDatasetAzure()
 
 
-# Static file routes
-
-@app.get("/")
-def home():
-    return send_from_directory(".", "index.html")
-
+# ──────────────────────────────────────────────
+# Static asset routes
+# ──────────────────────────────────────────────
 
 @app.get("/script.js")
 def script():
@@ -89,7 +113,71 @@ def script():
 def style():
     return send_from_directory(".", "style.css")
 
-# API routes
+
+# ──────────────────────────────────────────────
+# Main dashboard
+# ──────────────────────────────────────────────
+
+@app.get("/")
+async def home():
+    """Home page – renders the dashboard, passing auth user info if logged in."""
+    user = await auth0.get_user(g.store_options)
+    return render_template("index.html", user=user)
+
+
+# ──────────────────────────────────────────────
+# Auth0 OAuth routes
+# ──────────────────────────────────────────────
+
+@app.get("/login")
+async def login():
+    """
+    Start the Auth0 interactive login flow.
+    An optional ?connection=<provider> query param (google-oauth2 or github)
+    pre-selects the social provider on the Auth0 Universal Login page.
+    """
+    connection = request.args.get("connection")
+    options = StartInteractiveLoginOptions(
+        authorization_params={"connection": connection} if connection else None
+    )
+    authorization_url = await auth0.start_interactive_login(options, g.store_options)
+    return redirect(authorization_url)
+
+
+@app.get("/callback")
+async def callback():
+    """Handle the OAuth callback from Auth0 after the user authenticates."""
+    try:
+        await auth0.complete_interactive_login(str(request.url), g.store_options)
+        return redirect(url_for("home"))
+    except Exception as e:
+        return f"Authentication error: {str(e)}", 400
+
+
+@app.get("/profile")
+async def profile():
+    """
+    Protected page – requires an active Auth0 session.
+    Redirects to /login if the user is not authenticated.
+    """
+    user = await auth0.get_user(g.store_options)
+
+    if not user:
+        return redirect(url_for("login"))
+
+    return render_template("profile.html", user=user)
+
+
+@app.get("/logout")
+async def logout():
+    """Clear the Auth0 session and redirect to the Auth0 logout endpoint."""
+    logout_url = await auth0.logout(None, g.store_options)
+    return redirect(logout_url)
+
+
+# ──────────────────────────────────────────────
+# API routes (unchanged)
+# ──────────────────────────────────────────────
 
 @app.get("/recipes")
 @app.get("/recipies")
@@ -116,21 +204,19 @@ def recipes():
         df = loadDataset()
         df = fixDataset(df)
 
-        # filter
         if dietType:
             df = df.loc[df["Diet_type"].str.lower() == dietType]
         if search:
             df = df.loc[df["Recipe_name"].str.contains(search, case=False, na=False)]
 
-        # select columns
         df = df[["Recipe_name", "Diet_type", "Cuisine_type", "Protein(g)", "Carbs(g)", "Fat(g)"]]
 
         total_count = len(df)
-        total_pages = max(1, -(-total_count // limit))   # ceiling division
+        total_pages = max(1, -(-total_count // limit))
         page        = min(page, total_pages)
 
-        start = (page - 1) * limit
-        end   = start + limit
+        start   = (page - 1) * limit
+        end     = start + limit
         page_df = df.iloc[start:end]
 
         return jsonify({
@@ -193,8 +279,9 @@ def clusters():
         return jsonify({"error": "Failed to load dataset", "details": str(e)}), 500
 
 
+# ──────────────────────────────────────────────
 # Entry point
-
+# ──────────────────────────────────────────────
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Nutritional Insights API")
