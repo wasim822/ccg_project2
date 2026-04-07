@@ -1,10 +1,8 @@
 import argparse
 import os
-from io import BytesIO
 import warnings
 
 import pandas as pd
-from azure.storage.blob import BlobServiceClient
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for, g
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -28,9 +26,6 @@ app.config.update(
 
 warnings.filterwarnings("ignore")
 
-# Data source mode – set at startup via --source argument
-DATA_SOURCE = "azure"   # overwritten in main
-
 
 # ──────────────────────────────────────────────
 # Auth0 request context helper
@@ -43,7 +38,7 @@ def store_request_context():
 
 
 # ──────────────────────────────────────────────
-# Dataset helpers (unchanged)
+# Dataset helpers
 # ──────────────────────────────────────────────
 
 def fixDataset(odf: pd.DataFrame) -> pd.DataFrame:
@@ -74,30 +69,9 @@ def loadDatasetLocal() -> pd.DataFrame:
     return pd.read_csv(local_path)
 
 
-def loadDatasetAzure() -> pd.DataFrame:
-    """Load All_Diets.csv from Azure Blob Storage."""
-    connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
-    container_name = os.getenv("BLOB_CONTAINER", "data")
-    blob_name = os.getenv("BLOB_FILE", "All_Diets.csv")
-
-    if not connection_string:
-        raise ValueError("AZURE_STORAGE_CONNECTION_STRING is not set")
-
-    blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-    blob_client = blob_service_client.get_blob_client(
-        container=container_name,
-        blob=blob_name,
-    )
-
-    stream = blob_client.download_blob()
-    csv_bytes = stream.readall()
-    return pd.read_csv(BytesIO(csv_bytes))
-
-
 def loadDataset() -> pd.DataFrame:
-    if DATA_SOURCE == "local":
-        return loadDatasetLocal()
-    return loadDatasetAzure()
+    """Always load the dataset from the local CSV file."""
+    return loadDatasetLocal()
 
 
 # ──────────────────────────────────────────────
@@ -176,7 +150,7 @@ async def logout():
 
 
 # ──────────────────────────────────────────────
-# API routes (unchanged)
+# API routes
 # ──────────────────────────────────────────────
 
 @app.get("/recipes")
@@ -193,10 +167,10 @@ def recipes():
     """
     try:
         dietType = whitelistInput(request.values.get("dietType"))
-        search   = request.values.get("search", "").strip()
+        search = request.values.get("search", "").strip()
 
         try:
-            page  = max(1, int(request.values.get("page",  1)))
+            page = max(1, int(request.values.get("page", 1)))
             limit = max(1, int(request.values.get("limit", 20)))
         except ValueError:
             page, limit = 1, 20
@@ -213,18 +187,18 @@ def recipes():
 
         total_count = len(df)
         total_pages = max(1, -(-total_count // limit))
-        page        = min(page, total_pages)
+        page = min(page, total_pages)
 
-        start   = (page - 1) * limit
-        end     = start + limit
+        start = (page - 1) * limit
+        end = start + limit
         page_df = df.iloc[start:end]
 
         return jsonify({
-            "page":        page,
-            "limit":       limit,
+            "page": page,
+            "limit": limit,
             "total_count": total_count,
             "total_pages": total_pages,
-            "data":        page_df.to_dict(orient="records"),
+            "data": page_df.to_dict(orient="records"),
         }), 200
 
     except FileNotFoundError as e:
@@ -285,17 +259,9 @@ def clusters():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Nutritional Insights API")
-    parser.add_argument(
-        "--source",
-        choices=["local", "azure"],
-        default="azure",
-        help="Data source: 'local' reads All_Diets.csv from disk; "
-             "'azure' reads from Azure Blob Storage (default).",
-    )
     parser.add_argument("--port", type=int, default=5000, help="Port to listen on (default 5000)")
     args = parser.parse_args()
 
-    DATA_SOURCE = args.source
-    print(f"[startup] data source = {DATA_SOURCE}")
+    print("[startup] data source = local CSV")
 
     app.run(host="0.0.0.0", port=args.port)
