@@ -31,3 +31,5 @@
 <img width="975" height="705" alt="image" src="https://github.com/user-attachments/assets/14d33c9e-cc82-43f4-bd20-1ca0a06ebcec" />
 <img width="975" height="565" alt="image" src="https://github.com/user-attachments/assets/ee95d533-a79d-4d38-8b54-7e31b5ccf25b" />
 <img width="975" height="647" alt="image" src="https://github.com/user-attachments/assets/c3a2ae2b-2d56-4660-8919-1e6d2f4ef07e" />
+
+trigger deploy
