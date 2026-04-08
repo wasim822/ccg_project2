@@ -46,12 +46,21 @@ state_store = MemoryStateStore()
 transaction_store = MemoryTransactionStore()
 
 # Auth0 ServerClient – reads credentials from .env
+auth0_domain = os.getenv("AUTH0_DOMAIN")
+auth0_client_id = os.getenv("AUTH0_CLIENT_ID")
+auth0_client_secret = os.getenv("AUTH0_CLIENT_SECRET")
+auth0_secret = os.getenv("AUTH0_SECRET")
+auth0_redirect_uri = os.getenv("AUTH0_REDIRECT_URI")
+
+if not all([auth0_domain, auth0_client_id, auth0_client_secret, auth0_secret, auth0_redirect_uri]):
+    raise ValueError("Missing required Auth0 environment variables. Please check your .env file.")
+
 auth0 = ServerClient(
-    domain=os.getenv("AUTH0_DOMAIN"),
-    client_id=os.getenv("AUTH0_CLIENT_ID"),
-    client_secret=os.getenv("AUTH0_CLIENT_SECRET"),
-    secret=os.getenv("AUTH0_SECRET"),
-    redirect_uri=os.getenv("AUTH0_REDIRECT_URI"),
+    domain=str(auth0_domain),
+    client_id=str(auth0_client_id),
+    client_secret=str(auth0_client_secret),
+    secret=str(auth0_secret),
+    redirect_uri=str(auth0_redirect_uri),
     state_store=state_store,
     transaction_store=transaction_store,
     authorization_params={
